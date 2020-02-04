@@ -8,7 +8,7 @@ banner()
   printf "|`tput bold` %-58s `tput sgr0`|\n" "$@ "
   echo "+------------------------------------------------------------+"
 }
-banner \ "Welcome to Tormes bot. Please ensure you have all the" \ "files needed to run tormes inside the folder you ran this" \ "script from. Required files are sample1_R1.fastq.gz," \ "sample1_R2.fastq.gz. If you also have a " \ "reference_genome_file.fasta please include it in this" \ "folder. You can run more than one sample at a time." \ "Tormes works better with multiple samples."
+banner \ "Welcome to Tormesbot. Please ensure you have all the" \ "files needed to run tormes inside the folder you ran this" \ "script from. Required files are sample1_R1.fastq.gz," \ "sample1_R2.fastq.gz. If you also have a " \ "reference_genome_file.fasta please include it in this" \ "folder. You can run more than one sample at a time." \ "Tormes works better with multiple samples."
 ranbot=torm$((1 + RANDOM % 1000))
 mkdir $ranbot
 function banner2 ()
@@ -27,18 +27,14 @@ banner2 "Tormes minimum required information "
 echo
 echo "Tormes will create a folder for your output,"
 read -p "what would you like this folder to be called?: " outputfolvar
-read -p "Name of genome being run for Tormes output report: " samvar
-read -p "Description of sample for Tormes report: " descvar
 echo -e "Samples\t""Read1\t""Read2\t""Description" >> samples_metadata.txt
 plogpoop=y
-(( a = 0 ))
 while [[ "$plogpoop" =~ ^([yY][eE][sS]|[yY])+$ ]]; do
 r1check=(*R1.fastq.gz)
 r2check=(*R2.fastq.gz)
 if [[ -f "$r1check" && -f "$r2check" ]] ; then
 for butts in ${!r1check[*]}; do
-(( a++ ))
-echo -e "$samvar""$a""\t""${r1check[$butts]}""\t""${r2check[$butts]}""\t"$descvar >> samples_metadata.txt
+echo -e "${r1check[$butts]:0:7}""\t""${r1check[$butts]}""\t""${r2check[$butts]}""\t""${r1check[$butts]:0:7}" >> samples_metadata.txt
 plogpoop=n
 done
 else
@@ -53,12 +49,12 @@ if [[ "$diarrhea" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
 fi
 fi
 done
-for stench in ${!r1check[*]}; do
-cp ${r1check[$stench]} $ranbot
-done
-for splash in ${!r2check[*]}; do
-cp ${r2check[$splash]} $ranbot
-done
+# for stench in ${!r1check[*]}; do
+# cp ${r1check[$stench]} $ranbot
+# done
+# for splash in ${!r2check[*]}; do
+# cp ${r2check[$splash]} $ranbot
+# done
 mv samples_metadata.txt $ranbot
 
 echo "#!/bin/bash -i" >> slurm.sub
@@ -77,7 +73,7 @@ dogpoop=y
 while [[ "$dogpoop" =~ ^([yY][eE][sS]|[yY])+$ ]] ; do
 refcheck=$(ls *".fasta")
 if [ -f "$refcheck" ]; then
-echo "tormes -m ~/R-Drive/$ranbot/samples_metadata.txt -o $outputfolvar -t 28 -r ~/R-Drive/$ranbot/$refcheck" >> slurm.sub
+echo "tormes -m /scratch/$uservar/$ranbot/samples_metadata.txt -o $outputfolvar -t 28 -r /scratch/$uservar/$ranbot/$refcheck" >> slurm.sub
 cp "$refcheck" $ranbot
 dogpoop=n
 else
@@ -85,8 +81,8 @@ read -r -p "No reference genome detected (filename.fasta) If you would like to i
 			if [[ "$brown" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
 			continue
 			else
-			echo "tormes -m ~/R-Drive/$samvar/samples_metadata.txt -o $outputfolvar -t 28"
-			dogpoop=n					
+			echo "tormes -m /scratch/$uservar/$ranbot/samples_metadata.txt -o $outputfolvar -t 28" >> slurm.sub
+			dogpoop=n
 fi
 fi
 done
@@ -95,36 +91,44 @@ chmod +x slurm.sub
 mv slurm.sub $ranbot
 
 echo
-banner2 "Tormesbot has created a folder called $ranbot and moved" \ "all of your files into it. Tormesbot will now transfer" \ "the folder and its contents to your Tango R-Drive" \ "After the files have been copied to Tango, Tormesbot will" \ "run Tormes."
+banner2 "Tormesbot has created a folder called $ranbot and moved" \ "all of your files into it. Tormesbot will now transfer" \ "the folder and its contents to your Tango /scratch/$uservar/" \ "After the files have been copied to Tango, Tormesbot will" \ "run Tormes."
 
-read -n 1 -s -r -p "Please take note of your folder name ($ranbot) and press any key to continue..... " lol
+read -n 1 -s -r -p "Please press any key to continue..... " lol
 
 home=`pwd`
-# sftp $uservar@tango.unisa.edu.au <<EOF
-# cd R-Drive
-# put -r $home/$ranbot
-# exit
-# EOF
+sftp $uservar@tango.unisa.edu.au <<EOF
+cd /scratch/$uservar
+put -r $home/$ranbot
+exit
+EOF
 
-# ssh -t $uservar@tango.unisa.edu.au "cd R-Drive/$ranbot; sbatch slurm.sub; exit"
+# ssh -t $uservar@tango.unisa.edu.au "cd /scratch/$uservar/$ranbot; sbatch slurm.sub; exit"
 echo
-banner2 " !!!IMPORTANT!!!" \ "Upon completion you will receive an email from the HPC." \ "If you would like Tormesbot to retrieve your files," \ "please execute the script 'tormesretrieve' in the folder " \ "where you ran tormesbot2 from when you have received" \ "the completion email." 
+banner2 " !!!IMPORTANT!!!" \ "Upon completion you will receive an email from the HPC." \ "If you would like Tormesbot to retrieve your files," \ "please execute the script 'tormesretrieve' in the folder " \ "where you ran tormesbot from when you have received" \ "the completion email." 
 echo
 echo "#!/bin/bash" >> tormesretrieve
 echo "sftp $uservar@tango.unisa.edu.au <<EOF" >> tormesretrieve
-echo "cd R-Drive" >> tormesretrieve
+echo "cd /scratch/$uservar" >> tormesretrieve
 echo "rm $ranbot/*.fastq.gz" >> tormesretrieve
-echo "get -r $ranbot" >> tormesretrieve
-echo "rm $ranbot/*" >> tormesretrieve
-echo "rmdir $ranbot" >>tormesretrieve
+echo "get -a -r $ranbot" >> tormesretrieve
 echo "exit" >> tormesretrieve
 echo "EOF" >> tormesretrieve
-echo "echo ("Your files have been retrieved, they are located in the folder named $ranbot in the folder you ran this script from.")" >> tormesretrieve
+echo "ssh $uservar@tango.unisa.edu.au <<EOF" >> tormesretrieve
+echo "rm -r /scratch/$uservar/$ranbot/$outputfolvar" >> tormesretrieve
+echo "rm -r /scratch/$ranbot" >> tormesretrieve
+echo "exit" >> tormesretrieve
+echo "EOF" >> tormesretrieve
+echo "rm $ranbot/*.fastq.gz" >> tormesretrieve
+echo "mv $ranbot/slurm* $ranbot/$outputfolvar/" >> tormesretrieve
+echo "mv $ranbot/*.fasta $ranbot/$outputfolvar/" >> tormesretrieve
+echo "mv $ranbot/samples_metadata.txt $ranbot/$outputfolvar/" >> tormesretrieve
+echo "mv $ranbot/$outputfolvar ." >> tormesretrieve
+echo "rm -r $ranbot" >> tormesretrieve
+echo "echo '("Your files have been retrieved, they are located in the folder named $outputfolvar")'" >> tormesretrieve
 echo "echo" >> tormesretrieve
-echo "rm tormesretrieve" >> tormesretrieve
 chmod +x tormesretrieve
 echo
-banner2 " It has been tormesbot2's pleasure to assist" \ "you with all your whole genome sequencing needs." \ "Have a nice day."
+banner2 " It has been tormesbot's pleasure to assist" \ "you with all your whole genome sequencing needs." \ "Have a nice day."
 echo
 echo 
 exit
