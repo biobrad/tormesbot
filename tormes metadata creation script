@@ -1,0 +1,29 @@
+#!/bin/bash
+
+r0check=(*.fasta)
+r1check=(*1.fastq.gz)
+r2check=(*2.fastq.gz)
+echo -e "Samples\t""Read1\t""Read2\t""Description" > samples_metadata.txt
+if test -n "$(shopt -s nullglob; echo *.fasta)"; then
+for i in ${r0check[*]}; do
+echo -e "${i%.fasta}""\t""GENOME""\t""${i}""\t""Reads from ${i%.fasta}" >> samples_metadata.txt
+done
+echo
+echo "fasta files added to samples_metadata.txt" 
+else
+echo
+echo "no fasta files detected. Ignore if intentional."
+fi
+if [[ -f "$r1check" && -f "$r2check" ]] ; then
+for i in $(ls *1.fastq.gz); do
+echo -e "$(echo $i | sed "s/.*\///" | sed "s/1.fastq.gz//")""\t""$i""\t""$(echo $i | sed "s/1.fastq.gz/2.fastq.gz/")""\t""Reads from $(echo $i | sed "s/.*\///" | sed "s/1.fastq.gz//")" >> >
+done
+echo
+echo "fastq.gz files added to samples_metadata.txt"
+else
+echo
+echo "Missing or incomplete fastq.gz file set with naming syntax of xxxx1.fastq.gz and xxxx2.fastq.gz."
+echo "Ignore this message if this is intentional."
+fi
+echo
+echo "samples_metadata.txt file created, type: cat samples_metadata.txt to check entries"
