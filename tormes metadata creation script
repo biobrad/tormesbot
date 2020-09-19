@@ -1,5 +1,8 @@
 #!/bin/bash
 
+#This script needs to be run in the same folder that you have any .fasta or .fastq.gz files to be added to the 'tormes' 'samples_metadata.txt'
+#It will also only work if run tormes from the same folder that you ran this script from (it doesn't account for files in different folders)
+
 r0check=(*.fasta)
 r1check=(*1.fastq.gz)
 r2check=(*2.fastq.gz)
