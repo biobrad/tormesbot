@@ -1,0 +1,231 @@
+#!/bin/bash
+#
+# TORMESBOT5
+#
+# Script to send files to a HPC running Slurm with Tormes installed.
+# This script will create the required metadata files upload the necessary files via sftp, create the
+#
+# !!! DEPENDENCIES !!! - This script requires PIGZ compression software both on the local PC and the HPC cluster.
+# This invokes pigz from the PATH locally and uses a portable exe on the HPC
+# PIGZ - https://zlib.net/pigz/
+#
+# slurm script and pass the basic arguments for running tormes to slurm.
+#
+#variables
+ranbot=torm$((1 + RANDOM % 1000))
+r1check=(*1.fastq.gz)
+r2check=(*2.fastq.gz)
+var1=y
+NPROC=$(nproc)
+SAMP=samples_metadata.txt
+home=`pwd`
+#
+# this creates a randomly named folder to avoid duplication by the user.
+# this command will likely be deprecated in this version of Tormesbot
+#
+mkdir $ranbot
+#
+#Banner information
+#
+banner()
+{
+  echo "+------------------------------------------------------------+"
+  printf "| %-58s | \n" " `date`"
+  echo "|                                                            |"
+  printf "|`tput bold` %-58s `tput sgr0`|\n" "$@ "
+  echo "+------------------------------------------------------------+"
+}
+banner \ "Welcome to Tormes bot. Please ensure you have all the" \ "files needed to run tormes inside the folder you ran this" \ "script from. Required files are sample1_R1.fastq.gz," \ "sample1_R2.fastq.gz. If you also have a " \ "reference_genome_file.fasta please include it in this" \ "folder. You can run more than one sample at a time." \ "Tormes works better with multiple samples."
+function banner2 ()
+{
+  echo "+------------------------------------------------------------+"
+  printf "|`tput bold` %-58s `tput sgr0`|\n" "$@ "
+  echo "+------------------------------------------------------------+"
+}
+banner2 "Tango Connectivity and HPC Notification Information"
+echo
+read -p "Please enter your email address: " emailvar
+echo
+read -p "Please enter your tango username: " uservar
+echo
+banner2 "Tormes minimum required information "
+echo
+echo "Tormes will create a folder for your output,"
+echo
+read -p "what would you like this folder to be called?: " outputfolvar
+echo
+read -p "Enable additional analysis for E.coli sequences? y/n: " ecoli
+echo
+read -p "Are you using a reference sequence for assembly? y/n: " refquest
+echo
+if [[ "$refquest" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
+      read -p "please enter full file name of reference sequence: "  reffile
+	  echo
+      read -p "Do you want to exclude your reference from being analysed by tormes as well? y/n : " refquest2
+  if [[ "$refquest2" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
+        mv $reffile $ranbot
+		r0check=(*.fasta)
+		cp $ranbot/$reffile .
+		else
+		r0check=(*.fasta)
+fi
+fi
+#
+#create first line of samples_metadata.txt
+#
+echo -e "Samples\t""Read1\t""Read2\t""Description" > $SAMP
+#
+#tests for presence of fasta, adds to samples_metadata.txt and copies to temp folder
+#
+if test -n "$(shopt -s nullglob; echo *.fasta)"; then
+for i in ${r0check[*]}; do
+echo -e "${i%.fasta}""\t""GENOME""\t""${i}""\t""Reads from ${i%.fasta}" >> $SAMP
+cp $i $ranbot
+done
+fi
+# checking for presence of Read 1 and Read 2 fastq files
+#
+if [[ -f "$r1check" && -f "$r2check" ]] ; then
+for i in $(ls *1.fastq.gz); do
+echo -e "$(echo $i | sed "s/.*\///" | sed "s/1.fastq.gz//")""\t""$i""\t""$(echo $i | sed "s/1.fastq.gz/2.fastq.gz/")""\t""Reads from $(echo $i | sed "s/.*\///" | sed "s/1.fastq.gz//")" >> $SAMP
+done
+for i in ${!r1check[*]}; do
+cp ${r1check[$i]} $ranbot
+done
+for i in ${!r2check[*]}; do
+cp ${r2check[$i]} $ranbot
+done
+else
+read -r -p "R1 and R2 matching fastq.gz files are not present. If fastq.gz files ARE included in this analysis press y, check/add the files and restart script. Otherwise, just hit eneter to continue: " wordvar
+fi
+if [[ "$wordvar" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
+                rm -r $ranbot
+                rm -r $SAMP
+                exit 1
+fi
+# move samples_metadata.txt to tempfolder
+mv $SAMP $ranbot
+#
+# create slurm.sub file
+#
+cat <<EOF >> slurm.sub
+#!/bin/bash -i
+#SBATCH --job-name=$outputfolvar
+#SBATCH --mail-type=BEGIN
+#SBATCH --mail-user=$emailvar
+#SBATCH --partition=tango
+#SBATCH --ntasks=28
+#SBATCH --mem=250G
+#SBATCH --time=96:00:00
+echo Running on host \`hostname\`
+echo Time is \`date\`
+module load miniconda
+source activate tormes-1.2.1
+EOF
+#
+# add necessary tormes run arguments to slurm sbatch.sub file.
+#
+if [[ "$refquest" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
+echo "tormes -m /scratch/$uservar/$ranbot/$SAMP -o $outputfolvar -t 28 -r /scratch/$uservar/$ranbot/$reffile" >> slurm.sub
+else
+echo "tormes -m /scratch/$uservar/$ranbot/$SAMP -o $outputfolvar -t 28" >> slurm.sub
+fi
+if [[ "$ecoli" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
+sed -i "s/-t 28/-t 28 -g Escherichia/g" slurm.sub 
+fi
+#
+# create pigz compression file
+#
+cat <<EOF >> pigz.sub
+#!/bin/bash -i
+#SBATCH --job-name=tormescompleted
+#SBATCH --mail-type=END
+#SBATCH --mail-user=$emailvar
+#SBATCH --partition=tango
+#SBATCH --ntasks=28
+#SBATCH --mem=250G
+#SBATCH --time=96:00:00
+echo Running on host \`hostname\`
+echo Time is \`date\`
+tar cf - $outputfolvar | ./pigz -9 -p 28 > $outputfolvar.tar.gz
+EOF
+#
+# create slurm script
+#
+cat <<'EOF' >> slurmscript
+jid1=$(sbatch slurm.sub | sed 's/Submitted batch job //')
+jid2=$(sbatch --dependency=afterok:$jid1 pigz.sub)
+EOF
+chmod +x pigz.sub
+chmod +x slurm.sub
+chmod +x slurmscript
+mv slurmscript $ranbot
+mv pigz.sub $ranbot
+mv slurm.sub $ranbot
+# compress folder with pigz for upload
+echo
+banner2 "Tormesbot is squishing your files for faster upload"
+echo
+tar cf - $ranbot | pigz -9 -p $NPROC > $ranbot.tar.gz
+rm -r $ranbot
+#
+echo
+banner2 "Tormesbot has created a folder called $ranbot and moved" \ "all of your files into it. Tormesbot will now transfer" \ "the folder and its contents to your Tango directory" \ "/scratch/$uservar/. After the files have been " \ "copied to Tango, Tormesbot will run Tormes."
+#
+read -n 1 -s -r -p "Please press any key to continue..... " any
+#
+#copy files to HPC
+#
+sftp $uservar@tango.unisa.edu.au <<EOF
+cd /scratch/$uservar
+put $home/$ranbot.tar.gz
+exit
+EOF
+# remove locally created tar.gz file
+rm $ranbot.tar.gz
+#
+# sending commands to inflate tar.gz file and submit slurm.sub to hpc
+#
+echo
+banner2 " Files uploaded - Tormesbot will de-squish them " \ " on Tango and submit for analysis."
+echo
+#
+ssh -t $uservar@tango.unisa.edu.au "cd /scratch/$uservar/; tar -xzf $ranbot.tar.gz; rm $ranbot.tar.gz; cp pigz $ranbot; cd $ranbot/; ./slurmscript; exit"
+echo
+banner2 " !!!IMPORTANT!!!" \ "Upon completion you will receive an email from the HPC." \ "If you would like Tormesbot to retrieve your files," \ "please execute the script 'tormesretrieve' in the folder " \ "where you ran tormesbot5 from when you have received" \ "the completion email." 
+echo
+cat <<EOF >> tormesretrieve
+#!/bin/bash
+if [ -f batchfile.txt ]; then
+echo progress > batchfile.txt
+echo get -a $outputfolvar.tar.gz >> batchfile.txt
+else
+echo progress > batchfile.txt
+echo get $outputfolvar.tar.gz >> batchfile.txt
+fi
+sftp -b batchfile.txt $uservar@tango.unisa.edu.au:/scratch/$uservar/$ranbot/
+if [[ \$? != 0 ]]; then
+echo
+echo "****************************************************"
+echo "*Download failed! - please run tormesretrieve again*"
+echo "****************************************************"
+exit 1
+else
+echo "********************"
+echo "*Download completed*"
+echo "********************"
+fi
+rm batchfile.txt
+ssh -t $uservar@tango.unisa.edu.au "rm -r /scratch/$uservar/$ranbot; exit"
+echo
+echo "tormesbot is reinflating your squished files"
+echo
+tar -xzf $outputfolvar.tar.gz
+rm $outputfolvar.tar.gz
+echo "Your files have been retrieved and inflated, they are located in the folder named $outputfolvar"
+EOF
+chmod +x tormesretrieve
+echo
+banner2 " It has been tormesbot5's pleasure to assist" \ "you with all your whole genome sequencing needs." \ "Have a nice day."
+echo
+exit
