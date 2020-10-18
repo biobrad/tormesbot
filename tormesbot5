@@ -21,7 +21,6 @@ SAMP=samples_metadata.txt
 home=`pwd`
 #
 # this creates a randomly named folder to avoid duplication by the user.
-# this command will likely be deprecated in this version of Tormesbot
 #
 mkdir $ranbot
 #
