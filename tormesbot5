@@ -63,11 +63,11 @@ if [[ "$refquest" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
       read -p "Do you want to exclude your reference from being analysed by tormes as well? y/n : " refquest2
   if [[ "$refquest2" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
         mv $reffile $ranbot
-		r0check=(*.fasta)
-		cp $ranbot/$reffile .
-		else
-		r0check=(*.fasta)
 fi
+fi
+r0check=(*.fasta)
+if [[ "$refquest2" =~ ^([yY][eE][sS]|[yY])+$ ]]; then
+cp $ranbot/$reffile .
 fi
 #
 #create first line of samples_metadata.txt
