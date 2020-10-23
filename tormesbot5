@@ -4,12 +4,11 @@
 #
 # Script to send files to a HPC running Slurm with Tormes installed.
 # This script will create the required metadata files upload the necessary files via sftp, create the
-#
+# slurm script and pass the basic arguments for running tormes to slurm.
 # !!! DEPENDENCIES !!! - This script requires PIGZ compression software both on the local PC and the HPC cluster.
-# This invokes pigz from the PATH locally and uses a portable exe on the HPC
+# This invokes pigz from the PATH on the local user terminal as well as the HPC
 # PIGZ - https://zlib.net/pigz/
 #
-# slurm script and pass the basic arguments for running tormes to slurm.
 #
 #variables
 ranbot=torm$((1 + RANDOM % 1000))
@@ -21,7 +20,7 @@ SAMP=samples_metadata.txt
 home=`pwd`
 #
 # this creates a randomly named folder to avoid duplication by the user.
-#
+# 
 mkdir $ranbot
 #
 #Banner information
@@ -146,7 +145,7 @@ cat <<EOF >> pigz.sub
 #SBATCH --time=96:00:00
 echo Running on host \`hostname\`
 echo Time is \`date\`
-tar cf - $outputfolvar | ./pigz -9 -p 28 > $outputfolvar.tar.gz
+tar cf - $outputfolvar | pigz -9 -p 28 > $outputfolvar.tar.gz
 EOF
 #
 # create slurm script
@@ -155,13 +154,21 @@ cat <<'EOF' >> slurmscript
 jid1=$(sbatch slurm.sub | sed 's/Submitted batch job //')
 jid2=$(sbatch --dependency=afterok:$jid1 pigz.sub)
 EOF
+#
+# Give everyone permission to be executed
+#
 chmod +x pigz.sub
 chmod +x slurm.sub
 chmod +x slurmscript
+#
+# Move to upload folder
+#
 mv slurmscript $ranbot
 mv pigz.sub $ranbot
 mv slurm.sub $ranbot
+#
 # compress folder with pigz for upload
+#
 echo
 banner2 "Tormesbot is squishing your files for faster upload"
 echo
@@ -193,6 +200,9 @@ ssh -t $uservar@tango.unisa.edu.au "cd /scratch/$uservar/; tar -xzf $ranbot.tar.
 echo
 banner2 " !!!IMPORTANT!!!" \ "Upon completion you will receive an email from the HPC." \ "If you would like Tormesbot to retrieve your files," \ "please execute the script 'tormesretrieve' in the folder " \ "where you ran tormesbot5 from when you have received" \ "the completion email." 
 echo
+#
+# Create script to retrieve results from HPC
+#
 cat <<EOF >> tormesretrieve
 #!/bin/bash
 if [ -f batchfile.txt ]; then
